@@ -126,7 +126,67 @@ export function createStudentView() {
 
       return root;
     },
-    renderDecision() { return '학생 구현 대기: 서버의 판정과 이유를 연결하세요.'; },
+    renderDecision({ status, mode, data, error, appId } = {}) {
+      const root = document.createElement('section');
+      root.className = 'student-decision';
+
+      const make = (tag, text, className) => {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        node.textContent = text;
+        return node;
+      };
+      const target = typeof appId === 'string' && appId.length > 0 ? appId : '확인 불가';
+
+      if (mode === 'demo') root.append(make('p', '연결 모드: 예제 자료', 'state state-empty'));
+      else if (mode === 'disconnected') root.append(make('p', '연결 모드: 연결 없음', 'state state-empty'));
+      else if (mode === 'unknown') root.append(make('p', '연결 모드: 확인 불가', 'state state-empty'));
+
+      if (status === 'idle') {
+        root.append(make('p', '업무 앱을 골라 접속을 요청하세요. 아직 요청한 앱이 없습니다.'));
+        return root;
+      }
+      root.append(make('p', `대상 앱: ${target}`));
+      if (status === 'loading') {
+        root.append(make('p', '판정 확인 중…', 'state state-loading'));
+        return root;
+      }
+      if (status === 'error') {
+        // 요청 실패는 서버의 접근 거부 판정이 아니다. 허용으로도 읽히지 않게 따로 표시한다.
+        const message = typeof error?.message === 'string' && error.message.length > 0
+          ? error.message
+          : '서버가 오류 내용을 제공하지 않았습니다.';
+        root.append(make('p', `요청 실패: ${message}`, 'state state-error'));
+        root.append(make('p', '접근 거부(deny) 판정이 아닙니다. 서버의 판정을 받지 못했으므로 허용되지 않은 것으로 취급하세요. 필요하면 다시 요청하세요.'));
+        return root;
+      }
+      if (status !== 'ok') {
+        root.append(make('p', '확인 불가(unknown): 요청 상태를 확인할 수 없습니다. 허용되지 않은 것으로 취급하세요.', 'state state-empty'));
+        return root;
+      }
+      // 네 판정은 글자와 원래 코드값으로 구분한다. 목록에 없는 값은 확인 불가로 본다.
+      const decisions = {
+        allow: { label: '접근 허용(allow)', className: 'state state-ok', note: '정책상 접근이 허용됐습니다. 실제 앱 접속 성공을 보장하지는 않습니다.' },
+        deny: { label: '접근 거부(deny)', className: 'state state-error', note: '서버가 이 앱 접근을 거부했습니다.' },
+        challenge: { label: '추가 확인 필요(challenge)', className: 'state state-loading', note: '추가 인증 또는 확인이 필요합니다. 이 앱이 확인 절차를 대신 수행하지 않습니다. 확인 전에는 허용되지 않은 상태입니다.' },
+        unknown: { label: '확인 불가(unknown)', className: 'state state-empty', note: '서버 판정을 확인할 수 없습니다. 허용되지 않은 것으로 취급하세요.' },
+      };
+      const code = data?.decision;
+      const known = typeof code === 'string' && Object.hasOwn(decisions, code);
+      const decision = known ? decisions[code] : decisions.unknown;
+      root.append(make('p', `판정: ${decision.label}`, decision.className));
+      if (!known) root.append(make('p', `서버가 보낸 판정 값: ${typeof code === 'string' && code.length > 0 ? code : '없음'}`));
+      root.append(make('p', decision.note));
+
+      const reason = typeof data?.reason === 'string' && data.reason.length > 0 ? data.reason : '판정 이유 정보 없음';
+      root.append(make('p', `판정 이유: ${reason}`));
+      const time = typeof data?.checkedAt === 'string' ? new Date(data.checkedAt) : null;
+      const checkedAt = time && !Number.isNaN(time.getTime())
+        ? `${time.toLocaleString('ko-KR')} (${data.checkedAt})`
+        : '판정 시각 정보 없음';
+      root.append(make('p', `판정 시각: ${checkedAt}`));
+      return root;
+    },
     renderEvents() { return '학생 구현 대기: 본인 접속·XDR 기록을 연결하세요.'; },
     renderStatus() { return '학생 구현 대기: 기기·세션·알림과 연결 점검 상태를 구분하세요.'; },
     renderVulnerabilities() { return '학생 구현 대기: 정확한 설치 버전·OSV 출처·조회 시각·부분 결과·조회 실패를 구분하세요.'; },
