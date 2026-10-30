@@ -544,7 +544,143 @@ export function createStudentView() {
 
       return root;
     },
-    renderVulnerabilities() { return '학생 구현 대기: 정확한 설치 버전·OSV 출처·조회 시각·부분 결과·조회 실패를 구분하세요.'; },
+    renderVulnerabilities({ status, mode, data, error } = {}) {
+      // 호출마다 새 요소를 만든다. 조회 중·오류·취소일 때 이전 표는 남지 않는다.
+      // 자동으로 다시 조회하지 않는다. 조회와 취소는 제공 화면 버튼으로만 한다.
+      const root = document.createElement('section');
+      root.className = 'student-vulnerabilities';
+
+      const make = (tag, text, className) => {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text != null) node.textContent = text;
+        return node;
+      };
+      const text = (value) => typeof value === 'string' && value.length > 0 ? value : null;
+      const NOT_CLEAN = '조회 실패·미조회는 "취약점 없음"이 아닙니다.';
+      const RETRY_HINT = '다시 조회는 위 「설치 패키지 조회」 버튼을 직접 누르세요. 자동으로 다시 조회하지 않습니다.';
+
+      const modeText = { demo: '예제 자료 · 실제 연결 아님', disconnected: '연결 없음', connected: '연결됨' }[mode];
+      if (mode != null) root.append(make('p', `연결 모드: ${modeText ?? '확인 불가'}`, 'muted'));
+
+      if (!status || status === 'idle') {
+        root.append(make('p', '조회 상태: 조회 전(idle)', 'state state-empty'));
+        root.append(make('p', '아직 설치 패키지를 조회하지 않았습니다. 조회는 위 「설치 패키지 조회」 버튼을 직접 누르세요.'));
+        return root;
+      }
+      if (status === 'loading') {
+        root.append(make('p', '조회 상태: 조회 중(loading)', 'state state-loading'));
+        root.append(make('p', '아직 결과가 없습니다. 이전 조회 결과는 현재 결과로 표시하지 않습니다.'));
+        return root;
+      }
+      if (status !== 'ok') {
+        const code = text(error?.code);
+        const cancelled = code === 'CANCELLED' || code === 'REQUEST_CANCELLED';
+        root.append(make('p', `조회 상태: ${cancelled ? '조회 취소' : '조회 실패'}(${status === 'error' ? 'error' : text(status) ?? 'unknown'})`, 'state state-error'));
+        root.append(make('p', `조회 실패: ${text(error?.message) ?? '서버가 오류 내용을 제공하지 않았습니다.'}${code ? ` (${code})` : ''}`));
+        root.append(make('p', `${NOT_CLEAN} 이전 조회 결과는 현재 결과로 표시하지 않습니다.`, 'muted'));
+        root.append(make('p', RETRY_HINT, 'muted'));
+        return root;
+      }
+
+      // 전체 조회 상태. 원래 값과 뜻을 함께 쓴다.
+      const SCAN = {
+        complete: ['모두 조회(complete)', 'state state-ok', '승인된 조회 대상 패키지를 모두 OSV에서 조회했습니다.'],
+        partial: ['일부 조회 실패(partial)', 'state state-error', `일부 패키지는 조회하지 못했습니다. ${NOT_CLEAN} 이미 받은 취약점 ID는 그대로 표시합니다.`],
+        not_checked: ['아직 조회 안 함(not_checked)', 'state state-empty', `승인된 공개 조회 대상 패키지가 없어 OSV 조회를 하지 않은 미조회 상태입니다. 허용 패키지는 담당자가 준비합니다. ${NOT_CLEAN}`],
+        not_configured: ['조회 준비 미완료(not_configured)', 'state state-empty', `조회 대상 프로젝트 설정이 필요한 미조회 상태입니다. 대상 경로는 담당자가 준비하며 학생이 설정을 바꾸지 않습니다. ${NOT_CLEAN}`],
+        unverifiable: ['lock 파일 확인 불가(unverifiable)', 'state state-error', `package-lock.json과 설치된 node_modules 메타데이터를 대조할 수 없어 조회하지 않았습니다. ${NOT_CLEAN}`],
+      };
+      const scan = SCAN[data?.status];
+      if (!scan) {
+        root.append(make('p', `조회 상태: 확인 불가(${text(data?.status) ?? 'unknown'})`, 'state state-empty'));
+        root.append(make('p', `응답의 전체 조회 상태를 확인할 수 없어 결과를 표시하지 않습니다. ${NOT_CLEAN}`));
+        return root;
+      }
+      root.append(make('p', `조회 상태: ${scan[0]}`, scan[1]));
+      root.append(make('p', scan[2]));
+      if (text(data.code)) root.append(make('p', `상태 코드: ${data.code}`, 'muted'));
+
+      // 전체 결과 기준값. 전달된 값만 쓴다.
+      const meta = [['기준', 'package-lock.json과 설치된 node_modules 메타데이터 대조 결과']];
+      if (Number.isSafeInteger(data.lockfileVersion)) meta.push(['lockfileVersion', String(data.lockfileVersion)]);
+      if (text(data.lockfileHash)) meta.push(['lockfileHash', data.lockfileHash]);
+      if (text(data.checkedAt)) meta.push(['전체 조회 시각(checkedAt)', data.checkedAt]);
+      const metaList = make('dl', null, 'kv');
+      for (const [name, value] of meta) metaList.append(make('dt', name), make('dd', value));
+      root.append(metaList);
+
+      // 패키지별 결과. 범위 표기(^1.2.0 등)는 설치 버전으로 표시하지 않는다.
+      const EXACT = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+      const packages = Array.isArray(data.packages) ? data.packages : [];
+      if (packages.length === 0) {
+        root.append(make('p', `표시할 패키지 결과가 없습니다. ${data.status === 'complete' ? '' : NOT_CLEAN}`.trim(), 'state state-empty'));
+      } else {
+        const table = make('table', null, 'student-vulnerabilities-table');
+        table.append(make('caption', '패키지별 OSV 조회 결과'));
+        const headRow = make('tr');
+        for (const label of ['패키지(name)', '설치 버전(version)', '조회 상태(status)', '취약점 ID · 수정 시각(modified)', '출처(source)', '패키지 조회 시각(checkedAt)']) {
+          const th = make('th', label);
+          th.scope = 'col';
+          headRow.append(th);
+        }
+        const thead = make('thead');
+        thead.append(headRow);
+        const tbody = make('tbody');
+        for (const pkg of packages) {
+          const name = text(pkg?.name);
+          const version = text(pkg?.version) && EXACT.test(pkg.version) ? pkg.version : null;
+          const findings = Array.isArray(pkg?.vulnerabilities) ? pkg.vulnerabilities : [];
+          const row = make('tr');
+          if (name) row.dataset.studentPackageName = name;
+          if (version) row.dataset.studentPackageVersion = version;
+
+          let statusText;
+          let statusClass;
+          if (pkg?.status === 'known_vulnerabilities') {
+            statusText = '알려진 항목 있음(known_vulnerabilities)';
+            statusClass = 'state state-error';
+          } else if (pkg?.status === 'none_found') {
+            statusText = '알려진 항목 없음(none_found)';
+          } else if (pkg?.status === 'unverifiable') {
+            statusText = findings.length > 0 ? '일부 확인·전체 조회 확인 불가(unverifiable)' : '조회 확인 불가(unverifiable)';
+            statusClass = 'state state-error';
+          } else {
+            statusText = `확인 불가(${text(pkg?.status) ?? 'unknown'})`;
+            statusClass = 'state state-empty';
+          }
+
+          const findingCell = make('td');
+          if (findings.length > 0) {
+            // 일부 조회 실패여도 이미 받은 취약점 ID는 지우지 않는다.
+            const list = make('ul');
+            for (const finding of findings) {
+              list.append(make('li', `${text(finding?.id) ?? '확인 불가'} · 수정 시각 ${text(finding?.modified) ?? '확인 불가'}`));
+            }
+            findingCell.append(list);
+            if (pkg?.status === 'unverifiable') findingCell.append(make('p', '일부만 확인했으며 이 패키지의 전체 조회 결과는 확인할 수 없습니다.', 'muted'));
+          } else if (pkg?.status === 'none_found') {
+            findingCell.textContent = '조회 범위에서 알려진 항목이 없습니다(안전 보장 아님).';
+          } else {
+            findingCell.textContent = `조회하지 못함 · ${NOT_CLEAN}`;
+          }
+
+          row.append(
+            make('td', name ?? '확인 불가'),
+            make('td', version ?? `확인 불가(정확한 설치 버전 아님: ${text(pkg?.version) ?? '값 없음'})`, version ? undefined : 'state state-empty'),
+            make('td', statusText, statusClass),
+            findingCell,
+            make('td', text(pkg?.source) ?? '확인 불가'),
+            make('td', text(pkg?.checkedAt) ?? '확인 불가'),
+          );
+          tbody.append(row);
+        }
+        table.append(thead, tbody);
+        root.append(table);
+      }
+      root.append(make('p', 'OSV는 알려진 취약점 데이터베이스입니다. 조회 결과가 없다는 사실만으로 해당 패키지나 앱 전체가 안전하다고 보장할 수 없습니다.', 'muted'));
+      return root;
+    },
     renderAiConnection({ status, mode, data, error, checkedAt, explanationAccepted } = {}) {
       // 호출마다 새 요소를 만든다. 다시 점검해 성공하거나 idle로 돌아오면 이전 결과·오류 안내는 남지 않는다.
       // 자동으로 다시 점검하지 않는다. 다시 점검은 사용자가 버튼을 직접 누를 때만 일어난다.
