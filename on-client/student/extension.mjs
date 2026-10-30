@@ -759,6 +759,112 @@ export function createStudentView() {
       root.append(make('p', 'AI 설명·제안만으로 보안 조치가 실행되지 않습니다.', 'muted'));
       return root;
     },
-    renderAction() { return '학생 구현 대기: 현재 사건·조치·실제 대상·사람 확인·ACK와 원천 효과·unknown을 구분하세요.'; },
+    renderAction({ status, event, actionId, target, receipt, observation, message, confirmationExpiresAt, error } = {}) {
+      // 호출마다 새 요소를 만든다. 새 값이 오면 이전 대상·요청·결과 표시는 남지 않는다.
+      // 학생 코드는 조치 버튼·POST 요청·확인 티켓을 만들지 않는다. 조작은 제공 화면 버튼으로만 한다.
+      const root = document.createElement('section');
+      root.className = 'student-action';
+
+      const make = (tag, text, className) => {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text != null) node.textContent = text;
+        return node;
+      };
+      const text = (value) => typeof value === 'string' && value.length > 0 ? value : null;
+      const RESULT_RELOAD = '결과 확인은 위 「조치 준비와 원천 결과」 칸의 「원천 결과만 재조회」(연동 시스템 결과 재조회) 버튼을 직접 누르세요. 다시 집행하지 마세요.';
+      const NOT_UNDO = '「조치 화면 취소」는 화면만 닫으며, 이미 서버에 전달된 조치 효과를 되돌리지 않습니다.';
+
+      const head = (label, className) => root.append(make('p', `조치 상태: ${label}`, className));
+      const note = (value, className) => root.append(make('p', value, className));
+
+      // 접수 정보가 지금 사건·조치의 것인지 대조한다. 다르면 그 결과를 현재 결과로 쓰지 않는다.
+      const eventId = text(event?.id);
+      const intentMismatch = Boolean(receipt) && (
+        (text(receipt.eventId) && eventId && receipt.eventId !== eventId)
+        || (text(receipt.actionId) && text(actionId) && receipt.actionId !== actionId));
+      if (intentMismatch && !['idle', 'loading', 'error'].includes(status)) {
+        note('접수 정보의 사건·조치가 지금 화면의 사건·조치와 맞지 않습니다. 이 결과는 현재 결과로 쓰지 않습니다.', 'state state-error');
+        status = 'unknown';
+      }
+
+      if (!status || status === 'idle') {
+        head('아직 미실행(idle)', 'state state-empty');
+        note(text(message) ?? '조치 제안은 아직 실행되지 않았습니다.');
+        note('조치는 AI 제안에서 「조치 준비」를 누른 뒤, 실제 대상과 확인 기한을 읽고 「대상과 조치를 확인했으며 집행합니다」를 직접 눌러야 서버에 전달됩니다. 지금 기록처럼 연동 시스템이 지원하는 조치가 없으면 조치 준비 버튼이 나오지 않으며, 이것이 정상입니다.', 'muted');
+      } else if (status === 'loading') {
+        head('조치 준비 또는 결과 조회 중(loading) · 미실행', 'state state-loading');
+        note('아직 결과가 없습니다. 이 화면만으로 조치가 실행되지 않습니다.');
+      } else if (status === 'prepared') {
+        head('준비됨·미실행(prepared)', 'state state-empty');
+        note(`사람 확인 기한: ${text(confirmationExpiresAt) ?? '확인 불가'}`);
+        note('아직 서버에 집행을 전달하지 않았습니다. 아래 사건·근거·조치·실제 대상을 읽고, 맞으면 제공 화면의 「대상과 조치를 확인했으며 집행합니다」를 직접 누르세요. 기한이 지나면 다시 준비해야 합니다.');
+      } else if (status === 'executing') {
+        head('서버에 전달 중(executing)', 'state state-loading');
+        note('결과가 아직 없습니다. 완료 아님: 서버가 받았는지, 효과가 적용됐는지 아직 확인되지 않았습니다. 버튼을 다시 누르지 마세요.');
+      } else if (status === 'pending') {
+        head('서버 접수·처리 중(pending)', 'state state-loading');
+        note('서버가 요청을 받았다는 응답(ACK)일 뿐 효과가 아닙니다. 완료 아님: 연동 시스템이 효과를 확인하지 않았습니다.');
+        note(RESULT_RELOAD);
+      } else if (status === 'succeeded' && observation?.effectApplied === true) {
+        // 연동 시스템이 효과를 관측했을 때만 효과 확인으로 표시한다.
+        head('효과 확인(succeeded)', 'state state-ok');
+        note(`관측 시각: ${text(observation.observedAt) ?? '확인 불가'}`);
+        note('effectApplied: true');
+        note(`receiptId: ${text(receipt?.receiptId) ?? '확인 불가'}`);
+      } else if (status === 'succeeded' || status === 'unknown') {
+        // succeeded라도 effectApplied가 true가 아니면 성공으로 보지 않는다.
+        head('결과 불명(unknown)', 'state state-empty');
+        note('효과 없음으로도, 성공으로도 판단하지 마세요. 연동 시스템의 효과 관측이 확인되지 않았습니다.');
+        if (status === 'succeeded') note(`서버 상태는 succeeded였지만 effectApplied: ${observation?.effectApplied === false ? 'false' : '확인 불가'} 이므로 효과 확인으로 표시하지 않습니다.`);
+        if (receipt?.superseded === true) note('같은 사건에 더 새로운 요청이 있어 이 요청의 결과는 현재 결과가 아닙니다.');
+        note(RESULT_RELOAD);
+      } else if (status === 'denied') {
+        head('거절(denied)', 'state state-error');
+        note(`내용: ${text(message) ?? '연동 시스템이 조치를 거절했습니다.'}`);
+        note('효과는 적용되지 않았습니다. 같은 요청을 반복하지 마세요.');
+      } else if (status === 'failed') {
+        head('실패(failed)', 'state state-error');
+        note(`내용: ${text(message) ?? '연동 시스템에서 조치가 실패했습니다.'}`);
+        note('효과가 적용되었다고 판단하지 마세요. 필요하면 결과를 재조회하거나 담당자에게 확인하세요.');
+      } else if (status === 'expired') {
+        head('확인 기한 지남(expired)', 'state state-empty');
+        note('사람 확인 기한이 지나 집행할 수 없습니다. 필요하면 AI 제안에서 「조치 준비」부터 다시 하세요.');
+        if (text(error?.message)) note(`내용: ${error.message}`);
+      } else {
+        // error 또는 알 수 없는 status: 요청이 처리되지 않았다는 것만 알린다.
+        head(status === 'error' ? '요청 처리 안 됨(error)' : `확인 불가(${String(status)})`, 'state state-error');
+        note(`오류 코드: ${text(error?.code) ?? '확인 불가'}`);
+        note(`내용: ${text(error?.message) ?? text(message) ?? '서버가 오류 내용을 제공하지 않았습니다.'}`);
+        note('조치가 실행되었다고도, 실행되지 않았다고도 단정하지 마세요. 결과가 필요하면 재조회하세요.');
+      }
+
+      // 받은 범위의 식별값만 글자로 보여 준다. 없는 값은 만들지 않는다(확인 번호는 입력에 없다).
+      const ids = [];
+      if (eventId) ids.push(['사건 ID(event.id)', eventId]);
+      const evidenceIds = Array.isArray(event?.evidence) ? event.evidence.map((row) => text(row?.id)).filter(Boolean) : [];
+      if (evidenceIds.length > 0) ids.push(['근거 ID', evidenceIds.join(', ')]);
+      if (text(actionId)) ids.push(['조치(actionId)', actionId]);
+      if (text(target?.id)) ids.push(['실제 대상(target.id)', target.id]);
+      if (Number.isSafeInteger(target?.generation)) ids.push(['대상 세대(target.generation)', String(target.generation)]);
+      if (text(receipt?.requestId)) ids.push(['요청 ID(requestId)', receipt.requestId]);
+      if (text(receipt?.receiptId)) ids.push(['접수 ID(receiptId)', receipt.receiptId]);
+      if (Number.isSafeInteger(receipt?.version)) ids.push(['버전(version)', String(receipt.version)]);
+      if (ids.length > 0) {
+        root.append(make('h4', '현재 조치 정보'));
+        const list = make('dl', null, 'kv');
+        for (const [name, value] of ids) list.append(make('dt', name), make('dd', value));
+        root.append(list);
+      }
+      if (receipt?.replayed === true) {
+        note('replayed: true — 같은 요청 ID로 이미 접수된 결과를 다시 받은 것이며, 새로 한 번 더 집행하지 않았습니다.', 'muted');
+      }
+      if (status && status !== 'idle') note(NOT_UNDO, 'muted');
+
+      // 그린 화면의 바깥 요소에 현재 사건과 요청을 표시한다. 맞지 않는 접수 정보의 요청 ID는 붙이지 않는다.
+      if (eventId) root.dataset.studentActionEvent = eventId;
+      if (text(receipt?.requestId) && !intentMismatch) root.dataset.studentActionRequest = receipt.requestId;
+      return root;
+    },
   };
 }
