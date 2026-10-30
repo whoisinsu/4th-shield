@@ -68,7 +68,7 @@
 
 ### 4-1. PowerShell을 여는 위치
 1. 파일 탐색기에서 `on-client` 폴더를 엽니다.
-2. 주소 표시줄에 `powershell`을 입력하고 Enter를 누릅니다. 또는 새 PowerShell 창에서 아래처럼 이동합니다.
+2. 주소 표시줄에 `powershell`을 입력하고 Enter를 누릅니다. 또는 새 PowerShell 창에서 아래처럼 이동합니다. 아래 경로는 이 PC의 예시이며, 다른 PC·새 폴더에서는 저장소를 받은 위치의 `on-client`로 바꿉니다(새 환경 재현 기록: `docs/STUDENT_RELEASE_RECORD.md`).
 ```powershell
 cd "C:\Users\Administrator\AppData\Local\ALEPH\Workbench\projects\4차 방어전\on-client"
 ```
