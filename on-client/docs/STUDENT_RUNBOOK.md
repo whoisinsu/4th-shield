@@ -1,10 +1,10 @@
 # InSecret 학생 실행 설명서와 구성도
 
-이 문서는 학생이 새로 작성한 문서입니다. 제공 문서(`README.md`, `docs/` 아래 다른 문서)는 고치지 않았습니다.
+이 문서는 학생이 새로 작성한 문서입니다. 제공 문서(`README.md`, `docs/` 아래 학생 문서 두 개를 뺀 나머지)는 고치지 않았습니다.
 
 - 보안 Agent 이름: **InSecret** (앱 화면 제목은 시작 틀 기본값인 **케셰브**를 그대로 씁니다)
 - 시작 틀 버전: `package.json`의 `"version": "0.2.21"` (2026-10-30에 0.2.11에서 갱신. 제공 파일만 바뀌었고 학생 파일은 보존)
-- 학생 작성 코드: `on-client/student/extension.mjs` (13~20단계)
+- 학생 작성 파일(6장의 목록과 같음): `on-client/student/extension.mjs`(13~20단계 코드), `on-client/docs/STUDENT_RUNBOOK.md`(21단계, 이 문서), `on-client/docs/STUDENT_RELEASE_RECORD.md`(22단계 재현·릴리스 기록)
 
 표기 규칙: **[확인]** 은 이 PC에서 실제로 실행·화면 확인한 것, **[코드]** 는 코드·스크립트만 읽은 것, **[미확인]** 은 아직 확인하지 못한 것입니다.
 
@@ -57,7 +57,8 @@
    ├─ tools\package-app.mjs       ← 설치형 앱 포장 (제공, 0.2.21. 22단계 뒤 마무리 단계용)
    ├─ public\index.html, app.js   ← 화면과 제공 UI (제공)
    ├─ student\extension.mjs       ← 학생 작성 화면 함수 (학생)
-   └─ docs\STUDENT_RUNBOOK.md     ← 이 문서 (학생)
+   ├─ docs\STUDENT_RUNBOOK.md     ← 이 문서 (학생, 21단계)
+   └─ docs\STUDENT_RELEASE_RECORD.md ← 새 환경 재현·릴리스 기록 (학생, 22단계)
 ```
 
 이 PC의 실제 위치: `C:\Users\Administrator\AppData\Local\ALEPH\Workbench\projects\4차 방어전\on-client` [확인]
@@ -151,7 +152,16 @@ flowchart LR
 
 ## 6. 제공 코드와 학생 작성 부분
 
-제공/학생 구분 기준은 `on-client/.on-starter-manifest.json`과 Git 기록입니다. 학생은 `student/extension.mjs`와 이 문서만 변경했습니다. 서버·`public/app.js`·판정 코드·인증 설정은 고치지 않았습니다.
+제공/학생 구분 기준은 `on-client/.on-starter-manifest.json`과 Git 기록입니다.
+
+| 구분 | 파일 | 단계 |
+|---|---|---|
+| 학생 작성 | `student/extension.mjs` | 13~20 (8개 화면 함수) |
+| 학생 작성 | `docs/STUDENT_RUNBOOK.md` (이 문서) | 21 |
+| 학생 작성 | `docs/STUDENT_RELEASE_RECORD.md` | 22 |
+| 제공 | 위 세 파일을 뺀 `on-client` 아래 모든 파일(`student/engine-adapter.mjs` 포함). 시작 틀 0.2.21 갱신 커밋(7511996)은 학생이 저장했지만 내용은 제공 파일 그대로이며 학생 파일을 포함하지 않음 | – |
+
+학생 작성 파일 목록은 `docs/STUDENT_RELEASE_RECORD.md` 1장과 같습니다. 서버·`public/app.js`·판정 코드·인증 설정은 고치지 않았습니다.
 
 | 단계 | 학생 함수 | 보여 주는 것 | 제공 코드가 맡는 부분 |
 |---|---|---|---|

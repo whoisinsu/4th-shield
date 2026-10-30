@@ -16,7 +16,17 @@
 | 저장소 | https://github.com/whoisinsu/4th-shield |
 | 브랜치 | master |
 | 재현 대상 커밋 | `65695f671d5f5b8bd8385140be288fecc755ec2f` (21단계 문서까지 포함한 최종 코드) |
-| 이 기록을 담은 커밋 | 재현 대상 커밋 다음 커밋. 이 문서와 `docs/STUDENT_RUNBOOK.md` 경로 안내 한 줄만 추가하며 코드·설정은 바꾸지 않음 |
+| 이 기록을 담은 커밋 | 재현 대상 커밋 이후 커밋. 학생 문서 두 개(이 문서, `docs/STUDENT_RUNBOOK.md`)만 바뀌며 코드·설정·제공 파일은 재현 대상 커밋과 같음 |
+
+학생 작성 파일(`docs/STUDENT_RUNBOOK.md` 6장의 목록과 같음):
+
+| 파일 | 단계 |
+|---|---|
+| `on-client/student/extension.mjs` | 13~20 (8개 화면 함수) |
+| `on-client/docs/STUDENT_RUNBOOK.md` | 21 |
+| `on-client/docs/STUDENT_RELEASE_RECORD.md` (이 문서) | 22 |
+
+그 밖의 `on-client` 아래 파일은 모두 제공 파일입니다(`student/engine-adapter.mjs` 포함). 시작 틀 0.2.21 갱신 커밋(7511996)은 학생이 저장했지만 내용은 제공 파일 그대로입니다.
 
 v1.0이 아닌 이유: 19단계 보안 조치 실제 집행 연결이 준비되지 않았고, 실제 계정·AI·접근 제어·XDR 연결을 확인하지 못했습니다(6장).
 
@@ -71,7 +81,7 @@ v1.0이 아닌 이유: 19단계 보안 조치 실제 집행 연결이 준비되�
 |---|---|---|
 | 원래 폴더 Git 상태 | 커밋하지 않은 변경 없음, origin/master와 같음 | `git status`, `git rev-parse HEAD origin/master` (기록 시작 시점) |
 | 원래 폴더 커밋 기록 | 11개 커밋 유지(첫 커밋 880d802 ~ 65695f6) | `git log --oneline` |
-| 재현 후 원래 폴더 | HEAD 65695f6, 커밋 11개 그대로. 변경은 이 기록 문서와 설명서 한 줄뿐 | `git status`, `git rev-parse HEAD` (재현 후) |
+| 재현 후 원래 폴더 | HEAD 65695f6, 커밋 11개 그대로. 재현 직후 시점의 미커밋 변경은 학생 문서 두 개(이 문서, 설명서)뿐 | `git status`, `git rev-parse HEAD` (재현 후) |
 | 재현 후 새 폴더 | HEAD 65695f6, 변경 없음(실행해도 파일이 바뀌지 않음) | `git -C insecret-fresh status`, `rev-parse HEAD` |
 
 ---
